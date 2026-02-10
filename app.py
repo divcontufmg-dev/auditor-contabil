@@ -214,7 +214,7 @@ if st.button("Processar Conciliação"):
                 
                 progress_bar.progress((idx + 1) / len(pares))
 
-            # --- EXIBIÇÃO ---
+        # --- EXIBIÇÃO E DOWNLOAD ---
             st.success("Processamento concluído!")
             
             with st.expander("Ver Logs do Processamento"):
@@ -222,7 +222,9 @@ if st.button("Processar Conciliação"):
                     st.write(log)
             
             try:
-                pdf_bytes = pdf_out.output(dest='S').encode('latin-1', errors='replace') 
+                # CORREÇÃO AQUI: FPDF2 já retorna bytes com output()
+                pdf_bytes = pdf_out.output()  
+                
                 st.download_button(
                     label="📥 Baixar Relatório de Auditoria (PDF)",
                     data=pdf_bytes,
