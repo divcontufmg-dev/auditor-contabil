@@ -267,10 +267,10 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                         with st.expander("Ver Detalhes das Divergências"):
                             st.dataframe(divergencias[['Chave_Vinculo', 'Descricao', 'Saldo_PDF', 'Saldo_Excel', 'Diferenca']])
                     else:
-                        st.success("✅ Tudo certo! Nenhuma divergência encontrada nas contas padrão.")
+                        st.success("✅ Tudo certo! Nenhuma divergência encontrada nas contas.")
 
                     if tem_2042_com_saldo:
-                        st.warning(f"ℹ️ Conta de Estoque Interno (2042) tem saldo: R$ {saldo_2042:,.2f}")
+                        st.warning(f"ℹ️ Conta de Estoque Interno tem saldo: R$ {saldo_2042:,.2f}")
 
                     st.markdown("---")
 
@@ -343,4 +343,5 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
