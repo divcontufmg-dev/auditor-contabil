@@ -96,6 +96,9 @@ with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False
         Agora que você tem os arquivos separados:
         
         1. Gere o **Relatório em PDF** no sistema RMB (Sintético Patrimonial).
+
+        NOTA: É necessário que o PDF esteja com caracteres selecionáveis, ou seja que seja possível copiar e colar um dado. (Por vezes o relatório é retirado como imagem, dessa forma não funcionará).
+        
         2. Arraste **TODOS** os arquivos para a área abaixo:
            * Os PDFs do RMB.
            * Os Excels separados que a Macro 2 gerou.
@@ -344,6 +347,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
