@@ -59,6 +59,7 @@ with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False
         1. Baixe a **Macro 1 (Preparação)**.
         2. No Excel, aperte `ALT + F11`, insira um Módulo e cole.
         3. Execute para formatar a planilha.
+        
         NOTA: A planilha MATRIZ deve estar aberta pra que a macro funcione
         """)
         
@@ -343,5 +344,6 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
