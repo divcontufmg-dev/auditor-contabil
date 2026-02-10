@@ -42,7 +42,7 @@ def carregar_macro(nome_arquivo):
 # ==========================================
 # CABEÇALHO E TUTORIAL
 # ==========================================
-st.title("📊 Auditor Patrimonial Inteligente")
+st.title("📊 Ferramenta de conciliação RMBxSIAFI")
 st.markdown("---")
 
 with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False):
@@ -344,6 +344,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
