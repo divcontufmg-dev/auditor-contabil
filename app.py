@@ -3,7 +3,6 @@ import pandas as pd
 import pdfplumber
 import re
 from fpdf import FPDF, XPos, YPos
-import io
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Auditor Patrimonial", page_icon="🤖", layout="wide")
@@ -214,7 +213,7 @@ if st.button("Processar Conciliação"):
                 
                 progress_bar.progress((idx + 1) / len(pares))
 
-        # --- EXIBIÇÃO E DOWNLOAD ---
+            # --- EXIBIÇÃO ---
             st.success("Processamento concluído!")
             
             with st.expander("Ver Logs do Processamento"):
@@ -222,8 +221,8 @@ if st.button("Processar Conciliação"):
                     st.write(log)
             
             try:
-                # CORREÇÃO AQUI: FPDF2 já retorna bytes com output()
-                pdf_bytes = pdf_out.output()  
+                # CORREÇÃO APLICADA: Converte bytearray para bytes
+                pdf_bytes = bytes(pdf_out.output())
                 
                 st.download_button(
                     label="📥 Baixar Relatório de Auditoria (PDF)",
