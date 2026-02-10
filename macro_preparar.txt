@@ -1,0 +1,140 @@
+Sub AutomateSpreadsheetTasks()
+
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim sourceWorkbook As Workbook
+    Dim targetWorkbook As Workbook
+    Dim foundSheet As Boolean
+    Dim celula As Range
+    Dim valoresParaExcluir As Variant
+    Dim i As Long
+
+    ' Desativa a atualização da tela para acelerar a execução
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual ' Desativa o cálculo automático
+
+    Set targetWorkbook = ThisWorkbook ' Define a planilha onde o código está rodando
+
+    ' 1) Inserir uma nova aba chamada “MATRIZ”, capturando os dados da planilha excel aberta chamada “MATRIZ”
+    On Error Resume Next ' Ignora erros se a planilha "MATRIZ" já existir
+    Set sourceWorkbook = Workbooks("MATRIZ.xlsx") ' Altere para o nome exato do arquivo da planilha MATRIZ se for diferente
+    On Error GoTo 0 ' Restaura o tratamento de erros
+
+    If Not sourceWorkbook Is Nothing Then
+        foundSheet = False
+        For Each ws In targetWorkbook.Worksheets
+            If ws.Name = "MATRIZ" Then
+                foundSheet = True
+                Exit For
+            End If
+        Next ws
+
+        If Not foundSheet Then
+            sourceWorkbook.Sheets(1).Copy After:=targetWorkbook.Sheets(targetWorkbook.Sheets.Count)
+            targetWorkbook.ActiveSheet.Name = "MATRIZ"
+            MsgBox "A aba 'MATRIZ' foi criada e populada com sucesso!", vbInformation
+        Else
+            MsgBox "A aba 'MATRIZ' já existe e não será recriada.", vbExclamation
+        End If
+    Else
+        MsgBox "A planilha 'MATRIZ.xlsx' não está aberta. Certifique-se de que ela esteja aberta para copiar os dados.", vbExclamation
+        GoTo EndSub ' Sai da sub se a planilha MATRIZ não for encontrada
+    End If
+
+    ' Loop através de todas as abas, exceto "MATRIZ"
+    For Each ws In targetWorkbook.Worksheets
+        If ws.Name <> "MATRIZ" Then
+
+            ' 2) Inserir uma coluna em todas as abas da planilha exceto na planilha denominada “MATRIZ”
+            ws.Columns("A:A").Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+
+            ' 3) Inserir a formula PROCV(B;Planilha1!$A$1:$B$47;2;0) em todas as linhas da coluna A a partir da célula A8 até a última linha
+            lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row ' Encontra a última linha com dados na coluna B
+            If lastRow >= 8 Then
+                ws.Range("A8:A" & lastRow).Formula = "=VLOOKUP(B8,MATRIZ!$A$1:$B$47,2,FALSE)"
+            End If
+
+            ' 4) Converter todas as linhas da coluna B em número a partir de B8 até a ultima linha
+            If lastRow >= 8 Then
+                For Each celula In ws.Range("B8:B" & lastRow)
+                    celula.Value = CDbl(celula.Value) ' Converte para Double (número)
+                Next celula
+            End If
+
+          ' 5) Excluir linhas cujos valores da coluna B sejam iguais a “123110703”, “123110402” e “44905287”
+valoresParaExcluir = Array("123110703", "123110402", "44905287")
+
+For i = lastRow To 8 Step -1 ' Percorre de baixo para cima para não saltar linhas ao apagar
+    If Not IsError(ws.Cells(i, "B").Value) Then
+        Dim valorCelula As String
+        valorCelula = Trim(CStr(ws.Cells(i, "B").Value))
+
+        ' Verifica se o valor da célula está em qualquer uma das posições do Array
+        If valorCelula = valoresParaExcluir(0) Or _
+           valorCelula = valoresParaExcluir(1) Or _
+           valorCelula = valoresParaExcluir(2) Then
+            ws.Rows(i).Delete
+        End If
+    End If
+Next i
+
+            ' 6) Inserir uma célula contendo o somatório da coluna D após a ultima linha contendo valores,
+            ' sendo que o formato da célula deverá apresentar casa de milhares na formatação.
+            ' Inserir a palvra “TOTAL” após a ultima célula contendo valores da coluna C.
+            If lastRow > 0 Then ' Garante que há linhas com dados
+                ws.Cells(lastRow + 1, "D").Formula = "=SUM(D8:D" & lastRow & ")"
+                ws.Cells(lastRow + 1, "D").NumberFormat = "#,##0.00" ' Formato com separador de milhares
+
+                ' Inserir a palavra "TOTAL" na coluna C
+                ws.Cells(lastRow + 1, "C").Value = "TOTAL"
+            End If
+
+            ' 7) Ajustar todo o conteúdo das células de todas as Abas
+            ws.Columns.AutoFit
+
+            ' 8) Classificar a coluna A em ordem crescente a partir de A8 até a ultima célula
+            lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+            If lastRow >= 8 Then
+                ws.Sort.SortFields.Clear
+                ws.Sort.SortFields.Add Key:=ws.Range("A8:A" & lastRow), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+                With ws.Sort
+                    .SetRange ws.Range("A8:A" & lastRow) ' Ajuste o range de classificação para A8 até a última linha com dados na coluna A
+                    .Header = xlNo ' Não há cabeçalho no range de classificação
+                    .MatchCase = False
+                    .Orientation = xlTopToBottom
+                    .SortMethod = xlPinYin
+                    .Apply
+                End With
+            End If
+
+' =================================================================================
+            ' 9) NOVA FUNCIONALIDADE: Realçar linhas específicas de vermelho
+            ' =================================================================================
+            lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row ' Garante que temos a última linha correta
+            If lastRow >= 8 Then
+                For i = 8 To lastRow
+                    ' Condição 1: Valor na coluna B é 123110801
+                    ' Condição 2: Valor na coluna D é diferente de 0 e não está vazio
+                    If ws.Cells(i, "B").Value = 123110801 And ws.Cells(i, "D").Value <> 0 And Not IsEmpty(ws.Cells(i, "D").Value) Then
+                        ' Pinta o fundo do intervalo de B até D de vermelho
+                        ws.Range("B" & i & ":D" & i).Interior.Color = vbRed
+                    End If
+                    If ws.Cells(i, "B").Value = 123119905 And ws.Cells(i, "D").Value <> 0 And Not IsEmpty(ws.Cells(i, "D").Value) Then
+                        ' Pinta o fundo do intervalo de B até D de vermelho
+                        ws.Range("B" & i & ":D" & i).Interior.Color = vbBlue
+                    End If
+                Next i
+            End If
+
+        End If
+    Next ws
+
+EndSub:
+    ' Reativa a atualização da tela e o cálculo automático
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+
+    ' 10) Exibir ao final do trabalho a mensagem “PLANILHA DE BENS MÓVEIS ATUALIZADA COM ÊXITO!”
+    MsgBox "PLANILHA DE BENS MÓVEIS ATUALIZADA COM ÊXITO!", vbInformation
+
+End Sub

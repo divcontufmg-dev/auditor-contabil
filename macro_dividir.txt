@@ -1,0 +1,19 @@
+Sub SalvarAbasComoArquivos()
+    Dim ws As Worksheet
+    Dim Caminho As String
+    
+    'Caminho onde os arquivos serão salvos (mesma pasta do arquivo original)
+    Caminho = ThisWorkbook.Path & "\"
+    
+    Application.ScreenUpdating = False
+    
+    For Each ws In ThisWorkbook.Worksheets
+        ws.Copy
+        ActiveWorkbook.SaveAs Filename:=Caminho & ws.Name & ".xlsx"
+        ActiveWorkbook.Close SaveChanges:=True
+    Next ws
+    
+    Application.ScreenUpdating = True
+    
+    MsgBox "Processo concluído! As abas foram salvas na mesma pasta deste arquivo."
+End Sub
