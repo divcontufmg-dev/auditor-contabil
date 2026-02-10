@@ -112,7 +112,7 @@ uploaded_files = st.file_uploader(
 )
 
 # --- BOTÃO DE AÇÃO ---
-if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary"):
+if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
     
     if not uploaded_files:
         st.warning("⚠️ Por favor, adicione os arquivos antes de processar.")
@@ -344,6 +344,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
