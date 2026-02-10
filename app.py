@@ -59,6 +59,7 @@ with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False
         1. Baixe a **Macro 1 (Preparação)**.
         2. No Excel, aperte `ALT + F11`, insira um Módulo e cole.
         3. Execute para formatar a planilha.
+        NOTA: A planilha MATRIZ deve estar aberta pra que a macro funcione
         """)
         
         # Lê o arquivo txt que você subiu no GitHub
@@ -89,7 +90,7 @@ with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False
         )
 
     with col_tut2:
-        st.success("🤖 **Fase 2: No Auditor (Aqui)**")
+        st.success("🤖 **Fase 2: Na ferramenta (Aqui)**")
         st.markdown("""
         Agora que você tem os arquivos separados:
         
@@ -342,3 +343,4 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
