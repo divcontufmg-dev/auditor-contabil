@@ -43,6 +43,34 @@ def carregar_macro(nome_arquivo):
                 return f.read()
         except:
             return "Erro: Arquivo da macro não encontrado no repositório."
+# ... (imports) ...
+
+# Função para ler os arquivos de texto das macros
+def carregar_macro(nome_arquivo):
+    try:
+        with open(nome_arquivo, "r", encoding="utf-8") as f:
+            return f.read()
+    except:
+        # ... código da macro ...
+            return "Erro: Arquivo da macro não encontrado."
+
+# --- processamento pdf ---
+def processar_imagem_para_ocr(img):
+    # 1. Converte para tons de cinza
+    img = img.convert('L')
+    
+    # 2. Aumenta o contraste (ajuda a separar cinza claro de texto preto)
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(2.0)
+    
+    return img
+# --------------------------------------
+
+# ==========================================
+# CABEÇALHO E TUTORIAL
+# ==========================================
+st.title("📊 Ferramenta de conciliação RMBxSIAFI")
+# ... resto do código ...
 
 # ==========================================
 # CABEÇALHO E TUTORIAL
@@ -168,16 +196,6 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 try: return int(codigo_str[-2:])
                 except: return 0
 
-# --- Limpar PDF para OCR ---
-            def processar_imagem_para_ocr(img):
-    # 1. Converte para tons de cinza
-    img = img.convert('L')
-    
-    # 2. Aumenta o contraste em 2x (deixa o preto mais preto e o branco mais branco)
-    # Isso é mais seguro que o método anterior pois não "recorta" pixels cinzas claros.
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(2.0)
-    
     return img
             # ------------------------
             
@@ -435,6 +453,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
