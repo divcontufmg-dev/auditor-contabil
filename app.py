@@ -235,7 +235,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     except Exception as e:
                         logs.append(f"❌ Erro Leitura Excel UG {ug}: {e}")
 
-                # === PDF ===
+               # === PDF ===
                     df_pdf_final = pd.DataFrame()
                     dados_pdf = []
                     
@@ -245,20 +245,20 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         
                         with pdfplumber.open(io.BytesIO(pdf_bytes)) as p_doc:
                             for page in p_doc.pages:
-                                # 1. Tenta extração direta (rápida)
+                                # --- CAMINHO 1: TENTATIVA PADRÃO (Leitura direta) ---
                                 txt = page.extract_text()
-                                dados_pagina = [] 
+                                is_ocr = False # Flag para saber se o texto veio de OCR ou não
                                 
-                                # Verifica se a extração direta funcionou
+                                # Verifica se a leitura padrão retornou dados úteis (padrão de moeda)
                                 tem_dados_validos = False
                                 if txt:
-                                    for line in txt.split('\n'):
-                                        if re.search(r'\d{1,3}(?:[.,]\d{3})*[.,]\d{2}', line):
-                                            tem_dados_validos = True
-                                            break
+                                    # Procura qualquer coisa parecida com 00,00 ou 1.000,00
+                                    if re.search(r'\d{1,3}(?:[.,]\d{3})*[.,]\d{2}', txt):
+                                        tem_dados_validos = True
                                 
-                                # 2. Se não tem texto ou texto ruim, vai para OCR Inteligente
+                                # --- CAMINHO 2: MODO OCR (Só entra se o Caminho 1 falhar) ---
                                 if not txt or not tem_dados_validos or len(txt) < 50:
+                                    is_ocr = True # Marcamos que estamos usando OCR
                                     try:
                                         imagens = convert_from_bytes(
                                             pdf_bytes, 
@@ -269,7 +269,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                         if imagens:
                                             img = imagens[0]
                                             
-                                            # A. Correção de Rotação (OSD)
+                                            # A. Correção de Rotação (Se necessário)
                                             try:
                                                 osd = pytesseract.image_to_osd(img, output_type=Output.DICT)
                                                 if osd['rotate'] != 0:
@@ -277,16 +277,16 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                             except:
                                                 pass
                                             
-                                            # B. Limpeza de Imagem (AQUI ENTRA A MELHORIA DE LEITURA)
+                                            # B. Limpeza de Imagem (SÓ ACONTECE AQUI AGORA)
                                             img = processar_imagem_para_ocr(img)
                                             
-                                            # C. OCR Otimizado (Filtra só caracteres úteis)
+                                            # C. Extração Tesseract
                                             custom_config = r'--psm 6 -c tessedit_char_whitelist="0123456789.,ABCDEFGHIJKLMNOPQRSTUVWXYZÇÃÕÁÉÍÓÚ- "'
                                             txt = pytesseract.image_to_string(img, lang='por', config=custom_config)
                                     except Exception:
                                         pass
 
-                                # 3. Processamento do Texto (Agora com Regex mais tolerante a erros)
+                                # --- PROCESSAMENTO FINAL (Comum aos dois caminhos) ---
                                 if not txt: continue
                                 if "SINTÉTICO PATRIMONIAL" not in txt.upper(): continue
                                 if "DE ENTRADAS" in txt.upper() or "DE SAÍDAS" in txt.upper(): continue
@@ -294,20 +294,23 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                 for line in txt.split('\n'):
                                     if re.match(r'^"?\d+"?\s+', line):
                                         
-                                        # --- REGEX FLEXÍVEL ---
-                                        # Aceita espaços no meio dos números (ex: "1 000,00" ou "713 67")
-                                        vals_raw = re.findall(r'([\d\.\s]+,\d{2})', line)
+                                        vals = []
+                                        # Se for OCR, usamos o Regex Flexível (aceita espaços no lugar de pontos)
+                                        if is_ocr:
+                                            vals_raw = re.findall(r'([\d\.\s]+,\d{2})', line)
+                                            vals = [v.replace(' ', '') for v in vals_raw]
+                                        # Se for PDF Normal, usamos Regex Rígido (mais seguro para evitar falsos positivos)
+                                        else:
+                                            vals = re.findall(r'([0-9]{1,3}(?:[.,][0-9]{3})*[.,]\d{2})', line)
                                         
-                                        # Remove os espaços capturados para deixar o número limpo
-                                        vals = [v.replace(' ', '') for v in vals_raw]
-                                        
+                                        # Lógica de pegar da direita para a esquerda (Correção do Grupo 6)
                                         if len(vals) >= 4:
                                             chave_match = re.match(r'^"?(\d+)', line)
                                             if chave_match:
                                                 chave_raw = chave_match.group(1)
                                                 dados_pdf.append({
                                                     'Chave_Vinculo': int(chave_raw),
-                                                    # Pega o 4º item de trás pra frente (Saldo Atual)
+                                                    # Pega o 4º valor contando do fim (Saldo Atual)
                                                     'Saldo_PDF': limpar_valor(vals[-4])
                                                 })
                         
@@ -427,6 +430,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
