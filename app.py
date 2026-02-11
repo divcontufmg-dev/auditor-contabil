@@ -288,11 +288,11 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                 for line in txt.split('\n'):
                                     if re.match(r'^"?\d+"?\s+', line):
                                         vals = re.findall(r'([0-9]{1,3}(?:[.,][0-9]{3})*[.,]\d{2})', line)
-                                        if len(vals) >= 6:
+                                        if len(vals) >= 4:
                                             chave_raw = re.match(r'^"?(\d+)', line).group(1)
                                             dados_pdf.append({
                                                 'Chave_Vinculo': int(chave_raw),
-                                                'Saldo_PDF': limpar_valor(vals[5])
+                                                'Saldo_PDF': limpar_valor(vals[-4])
                                             })
                         
                         if dados_pdf:
@@ -411,6 +411,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
