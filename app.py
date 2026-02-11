@@ -19,7 +19,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo Clean
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -37,22 +36,21 @@ def carregar_macro(nome_arquivo):
             with open(nome_arquivo, "r", encoding="latin-1") as f: return f.read()
         except: return "Erro: Arquivo não encontrado."
 
-# === FUNÇÃO DE INTELIGÊNCIA HÍBRIDA (AGORA COM DETECÇÃO DE PAISAGEM) ===
+# === FUNÇÃO DE INTELIGÊNCIA HÍBRIDA ===
 def extrair_dados_pdf_hibrido(arquivo_pdf):
     dados_extraidos = []
     usou_ocr = False
     
-    # Lê o arquivo para memória
     pdf_bytes = arquivo_pdf.read()
     
-    # 1. Leitura Direta (layout=True corrige alinhamento Paisagem/Retrato)
+    # 1. Leitura Direta
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         texto_total = ""
         for page in pdf.pages:
             texto_pagina = page.extract_text(layout=True) or ""
             texto_total += "\n" + texto_pagina
 
-    # 2. Fallback para OCR se estiver vazio
+    # 2. Fallback OCR
     if len(texto_total) < 50:
         usou_ocr = True
         try:
@@ -68,30 +66,23 @@ def extrair_dados_pdf_hibrido(arquivo_pdf):
 
     # 3. Processamento das Linhas
     for line in texto_total.split('\n'):
-        # Filtros de cabeçalho
         if "SINTÉTICO PATRIMONIAL" in line.upper(): continue
         if "DE ENTRADAS" in line.upper() or "DE SAÍDAS" in line.upper(): continue
         
         line = line.strip()
-        # Regex captura: Numero (Chave) ... Descrição ... Valores
+        # Regex: Chave ... Descrição ... Valores
         match = re.search(r'^"?(\d+)"?\s+(.+?)(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})', line)
         
         if match:
-            # Encontra todos os valores numéricos da linha
+            # Pega TODOS os valores monetários da linha
             vals = re.findall(r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})', line)
             
-            # === LÓGICA DINÂMICA (RETRATO vs PAISAGEM) ===
-            # Retrato (Padrão): ~8 colunas de valores -> Saldo Atual é a 6ª (índice 5)
-            # Paisagem (Invertido): ~10+ colunas -> Saldo Atual costuma ser a 7ª (índice 6)
+            # === CORREÇÃO AQUI: LÓGICA REVERSA ===
+            # A ordem final costuma ser: | SALDO ATUAL | DEPRECIAÇÃO | VLR LIQUIDO | COMODATO |
+            # Portanto, pegamos o 4º valor contando do final (-4).
             
-            indice_saldo = 5 # Padrão (Retrato)
-            
-            if len(vals) >= 9:
-                indice_saldo = 6 # Ajuste para Paisagem
-            
-            # Segurança para não estourar o índice
-            if len(vals) > indice_saldo:
-                valor_candidato = vals[indice_saldo]
+            if len(vals) >= 4:
+                valor_candidato = vals[-4] # <--- O PULO DO GATO
                 
                 chave = int(match.group(1))
                 desc = re.sub(r'[\d.,]+$', '', match.group(2)).strip() 
@@ -105,7 +96,7 @@ def extrair_dados_pdf_hibrido(arquivo_pdf):
     return dados_extraidos, "OCR Ativado" if usou_ocr else "Leitura Direta"
 
 # ==========================================
-# INTERFACE DO APP
+# INTERFACE
 # ==========================================
 st.title("👁️ Auditor Patrimonial (Inteligente)")
 st.markdown("---")
@@ -121,7 +112,7 @@ with st.expander("📘 GUIA DE USO E MACROS", expanded=False):
         st.download_button("📥 Baixar Macro 2", macro2, "Macro_2.txt")
     with col2:
         st.success("2. Auditoria (Aqui)")
-        st.write("Suporta: PDFs Texto, Imagem (Scanner) e Paisagem (Invertido).")
+        st.write("Suporta: PDFs Texto, Imagem e Paisagem.")
 
 st.subheader("📂 Área de Arquivos")
 uploaded_files = st.file_uploader(
@@ -155,7 +146,6 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
         if not pares:
             st.error("❌ Nenhum par encontrado.")
         else:
-            # Funções Auxiliares
             def limpar_valor(v):
                 if v is None or pd.isna(v): return 0.0
                 if isinstance(v, (int, float)): return float(v)
@@ -195,7 +185,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 status_text.text(f"Processando {ug}...")
                 
                 with st.container():
-                    # === 1. PDF INTELIGENTE ===
+                    # === PDF ===
                     par['pdf'].seek(0)
                     dados_pdf_raw, metodo_leitura = extrair_dados_pdf_hibrido(par['pdf'])
                     
@@ -205,11 +195,10 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                         df_temp['Saldo_PDF'] = df_temp['Saldo_PDF'].apply(limpar_valor)
                         df_pdf_final = df_temp.groupby('Chave_Vinculo')['Saldo_PDF'].sum().reset_index()
 
-                    # === 2. EXCEL ===
+                    # === EXCEL ===
                     df_padrao = pd.DataFrame()
                     saldo_2042 = 0.0
                     tem_2042 = False
-                    
                     try:
                         par['excel'].seek(0)
                         try: df = pd.read_csv(par['excel'], header=None, encoding='latin1', sep=',', engine='python')
@@ -227,13 +216,12 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                             mask = df['Cod'].str.startswith('449')
                             df_dados = df[mask].copy()
                             df_dados['Chave_Vinculo'] = df_dados['Cod'].apply(extrair_chave)
-                            
                             df_padrao = df_dados.groupby('Chave_Vinculo').agg({'Val':'sum', 'Desc':'first'}).reset_index()
                             df_padrao.columns = ['Chave_Vinculo', 'Saldo_Excel', 'Descricao_Completa']
                     except Exception as e:
                         logs.append(f"Erro Excel {ug}: {e}")
 
-                    # === 3. CRUZAMENTO ===
+                    # === CRUZAMENTO ===
                     if df_padrao.empty: df_padrao = pd.DataFrame(columns=['Chave_Vinculo', 'Saldo_Excel', 'Descricao_Completa'])
                     if df_pdf_final.empty: df_pdf_final = pd.DataFrame(columns=['Chave_Vinculo', 'Saldo_PDF'])
 
@@ -248,12 +236,12 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                     s_ex = final['Saldo_Excel'].sum()
                     dif = s_pdf - s_ex
                     
-                    c1.metric("RMB (PDF)", f"R$ {s_pdf:,.2f}", help="Total extraído do PDF (considerando orientação)")
+                    c1.metric("RMB (PDF)", f"R$ {s_pdf:,.2f}")
                     c2.metric("SIAFI (Excel)", f"R$ {s_ex:,.2f}")
                     c3.metric("Diferença", f"R$ {dif:,.2f}", delta_color="inverse" if abs(dif) > 0.05 else "normal")
 
                     if not divergencias.empty:
-                        st.warning(f"⚠️ {len(divergencias)} divergência(s) na UG {ug}.")
+                        st.warning(f"⚠️ {len(divergencias)} divergência(s).")
                         with st.expander("Ver Detalhes"):
                             st.dataframe(divergencias[['Chave_Vinculo', 'Descricao', 'Saldo_PDF', 'Saldo_Excel', 'Diferenca']])
                     else:
@@ -262,7 +250,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                     if tem_2042: st.warning(f"ℹ️ Estoque Interno: R$ {saldo_2042:,.2f}")
                     st.markdown("---")
 
-                    # === PDF REPORT ===
+                    # === REPORT ===
                     pdf_out.set_font("helvetica", 'B', 11)
                     pdf_out.set_fill_color(240, 240, 240)
                     pdf_out.cell(0, 10, f"Unidade Gestora: {ug}", 1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
