@@ -9,6 +9,7 @@ import pytesseract
 from pdf2image import convert_from_bytes
 from PIL import Image
 from pytesseract import Output
+from PIL import ImageEnhance
 
 # ==========================================
 # CONFIGURAÇÃO INICIAL
@@ -434,6 +435,8 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
+
 
 
 
