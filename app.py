@@ -73,7 +73,7 @@ def formatar_real(valor):
 class PDF_Report(FPDF):
     def header(self):
         self.set_font('helvetica', 'B', 12)
-        self.cell(0, 10, 'Relatório de Auditoria Patrimonial', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 10, 'Relatório de conferência patrimonial', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(5)
     def footer(self):
         self.set_y(-15); self.set_font('helvetica', 'I', 8)
@@ -348,3 +348,4 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 st.download_button("BAIXAR RELATÓRIO PDF", pdf_bytes, "RELATORIO_FINAL.pdf", "application/pdf", type="primary", use_container_width=True)
             except Exception as e:
                 st.error(f"Erro download: {e}")
+
