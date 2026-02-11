@@ -87,17 +87,64 @@ st.markdown("---")
 
 with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False):
     st.markdown("### 🚀 Passo a Passo Completo")
+    
     col_tut1, col_tut2 = st.columns(2)
+    
     with col_tut1:
         st.info("💻 **Fase 1: No Excel (Preparação)**")
+        st.markdown("""
+        O arquivo original do Tesouro precisa ser tratado antes de entrar aqui.
+        
+        **Passo A: Preparar**
+        1. Baixe a **Macro 1 (Preparação)**.
+        2. No Excel, aperte `ALT + F11`, insira um Módulo e cole.
+        3. Execute para formatar a planilha.
+        
+        NOTA: A planilha MATRIZ deve estar aberta pra que a macro funcione
+        """)
+        
+        # Lê o arquivo txt que você subiu no GitHub
         macro1_content = carregar_macro("macro_preparar.txt")
-        st.download_button("📥 Baixar Macro 1: Preparar (.txt)", macro1_content, "Macro_1_Preparar.txt")
+        st.download_button(
+            label="📥 Baixar Macro 1: Preparar (.txt)",
+            data=macro1_content,
+            file_name="Macro_1_Preparar.txt",
+            mime="text/plain"
+        )
+        
         st.markdown("---")
+        
+        st.markdown("""
+        **Passo B: Dividir**
+        1. Baixe a **Macro 2 (Divisão)**.
+        2. Cole no Excel e execute.
+        3. Isso vai gerar vários arquivos Excel (um por UG).
+        """)
+        
+        # Lê o arquivo txt que você subiu no GitHub
         macro2_content = carregar_macro("macro_dividir.txt")
-        st.download_button("📥 Baixar Macro 2: Dividir (.txt)", macro2_content, "Macro_2_Dividir.txt")
+        st.download_button(
+            label="📥 Baixar Macro 2: Dividir (.txt)",
+            data=macro2_content,
+            file_name="Macro_2_Dividir.txt",
+            mime="text/plain"
+        )
+
     with col_tut2:
         st.success("🤖 **Fase 2: Na ferramenta (Aqui)**")
-        st.markdown("1. Gere o PDF do RMB.\n2. Arraste PDFs e Excels abaixo.\n3. Clique em Iniciar.")
+        st.markdown("""
+        Agora que você tem os arquivos separados:
+        
+        1. Gere o **Relatório em PDF** no sistema RMB (Sintético Patrimonial).
+
+        NOTA: É necessário que o PDF esteja com caracteres selecionáveis, ou seja que seja possível copiar e colar um dado. (Por vezes o relatório é retirado como imagem, dessa forma não funcionará).
+        
+        2. Arraste **TODOS** os arquivos para a área abaixo:
+           * Os PDFs do RMB.
+           * Os Excels separados que a Macro 2 gerou.
+        3. O sistema vai casar os pares (PDF + Excel) automaticamente.
+        4. Clique em **Iniciar Auditoria**.
+        """)
 
 st.subheader("📂 Área de Arquivos")
 uploaded_files = st.file_uploader(
