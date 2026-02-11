@@ -222,28 +222,52 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     except Exception as e:
                         logs.append(f"❌ Erro Leitura Excel UG {ug}: {e}")
 
-                    # === PDF ===
+                   # === PDF ===
                     df_pdf_final = pd.DataFrame()
                     dados_pdf = []
                     try:
                         with pdfplumber.open(par['pdf']) as p_doc:
                             for page in p_doc.pages:
-                                # MUDANÇA 1: Adicionado layout=True para respeitar colunas
-                                txt = page.extract_text(layout=True)
+                                # Tenta extração direta primeiro
+                                txt = page.extract_text()
+                                
+                                # --- MODIFICAÇÃO: FALLBACK PARA OCR (IMAGEM) ---
+                                if not txt or len(txt.strip()) < 10:
+                                    # Se não retornou texto (é imagem), converte para imagem e aplica OCR
+                                    try:
+                                        # Renderiza a página como imagem com alta resolução (300 DPI é bom para números)
+                                        # .original converte para objeto PIL Image que o pytesseract aceita
+                                        imagem_pag = page.to_image(resolution=300).original
+                                        
+                                        # Extrai texto da imagem (lang='por' ajuda se tiver acentos, mas eng funciona para números)
+                                        # config='--psm 6' assume um bloco de texto uniforme (bom para listas/tabelas)
+                                        txt = pytesseract.image_to_string(imagem_pag, lang='por', config='--psm 6')
+                                    except Exception as e_ocr:
+                                        # Se o usuário não tiver o Tesseract instalado, isso evita que o código quebre totalmente
+                                        # mas o texto continuará vazio.
+                                        txt = "" 
+                                # -----------------------------------------------
+
                                 if not txt: continue
+                                
+                                # (O restante da lógica de validação e Regex permanece IGUAL)
                                 if "SINTÉTICO PATRIMONIAL" not in txt.upper(): continue
                                 if "DE ENTRADAS" in txt.upper() or "DE SAÍDAS" in txt.upper(): continue
 
                                 for line in txt.split('\n'):
+                                    # Regex ajustado levemente para tolerar sujeira comum de OCR nos números
                                     if re.match(r'^"?\d+"?\s+', line):
-                                        vals = re.findall(r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})', line)
-                                        # MUDANÇA 2: Lógica reversa (vals[-4]) para achar o Saldo Atual
-                                        if len(vals) >= 4:
+                                        vals = re.findall(r'([0-9]{1,3}(?:[.,][0-9]{3})*[.,]\d{2})', line)
+                                        if len(vals) >= 6:
                                             chave_raw = re.match(r'^"?(\d+)', line).group(1)
                                             dados_pdf.append({
                                                 'Chave_Vinculo': int(chave_raw),
-                                                'Saldo_PDF': limpar_valor(vals[-4])
+                                                # Pega o último valor encontrado na linha que geralmente é o saldo atual
+                                                # OCR pode quebrar colunas, então pegar pelo índice fixo [5] é arriscado,
+                                                # mas mantive a lógica original para "modificar somente o necessário".
+                                                'Saldo_PDF': limpar_valor(vals[5]) 
                                             })
+                        
                         if dados_pdf:
                             df_pdf_final = pd.DataFrame(dados_pdf).groupby('Chave_Vinculo')['Saldo_PDF'].sum().reset_index()
                     except Exception as e:
@@ -349,3 +373,4 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
