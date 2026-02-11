@@ -7,9 +7,8 @@ import io
 import os
 import pytesseract
 from pdf2image import convert_from_bytes
-from PIL import Image
+from PIL import Image, ImageEnhance
 from pytesseract import Output
-from PIL import ImageEnhance
 
 # ==========================================
 # CONFIGURAÇÃO INICIAL
@@ -21,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS para limpar a tela
+# Estilos CSS
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -31,111 +30,104 @@ hide_streamlit_style = """
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# Função para ler os arquivos de texto das macros
+# ==========================================
+# FUNÇÕES AUXILIARES (ESCOPO GLOBAL)
+# ==========================================
+
 def carregar_macro(nome_arquivo):
     try:
         with open(nome_arquivo, "r", encoding="utf-8") as f:
             return f.read()
     except:
-        # Tenta encoding latin-1 se utf-8 falhar (caso tenha acentos do windows)
         try:
             with open(nome_arquivo, "r", encoding="latin-1") as f:
                 return f.read()
         except:
             return "Erro: Arquivo da macro não encontrado no repositório."
-# ... (imports) ...
 
-# Função para ler os arquivos de texto das macros
-def carregar_macro(nome_arquivo):
+def limpar_valor(v):
+    if v is None or pd.isna(v): return 0.0
+    if isinstance(v, (int, float)): return float(v)
+    v = str(v).replace('"', '').replace("'", "").strip()
+    # Remove pontos de milhar e troca virgula decimal por ponto
+    if re.search(r',\d{1,2}$', v): v = v.replace('.', '').replace(',', '.')
+    elif re.search(r'\.\d{1,2}$', v): v = v.replace(',', '')
+    try: return float(re.sub(r'[^\d.-]', '', v))
+    except: return 0.0
+
+def limpar_codigo_bruto(v):
     try:
-        with open(nome_arquivo, "r", encoding="utf-8") as f:
-            return f.read()
-    except:
-        # ... código da macro ...
-            return "Erro: Arquivo da macro não encontrado."
+        s = str(v).strip()
+        if s.endswith('.0'): s = s[:-2]
+        return s
+    except: return ""
 
-# --- processamento pdf ---
+def extrair_chave_vinculo(codigo_str):
+    try: return int(codigo_str[-2:])
+    except: return 0
+
+def formatar_real(valor):
+    # Formata para exibição no PDF: 1.234,56
+    return f"{valor:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
+
+# --- FUNÇÃO DE LIMPEZA DE IMAGEM (OCR) ---
 def processar_imagem_para_ocr(img):
     # 1. Converte para tons de cinza
     img = img.convert('L')
-    
     # 2. Aumenta o contraste (ajuda a separar cinza claro de texto preto)
+    # Não usamos binarização agressiva para evitar apagar números claros
     enhancer = ImageEnhance.Contrast(img)
     img = enhancer.enhance(2.0)
-    
     return img
-# --------------------------------------
+
+# --- CLASSE DO RELATÓRIO PDF ---
+class PDF_Report(FPDF):
+    def header(self):
+        self.set_font('helvetica', 'B', 12)
+        self.cell(0, 10, 'Relatório de Auditoria Patrimonial', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.ln(5)
+    def footer(self):
+        self.set_y(-15); self.set_font('helvetica', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', align='C')
 
 # ==========================================
-# CABEÇALHO E TUTORIAL
-# ==========================================
-st.title("📊 Ferramenta de conciliação RMBxSIAFI")
-# ... resto do código ...
-
-# ==========================================
-# CABEÇALHO E TUTORIAL
+# INTERFACE DO USUÁRIO
 # ==========================================
 st.title("📊 Ferramenta de conciliação RMBxSIAFI")
 st.markdown("---")
 
 with st.expander("📘 GUIA DE USO E MACROS (Clique para abrir)", expanded=False):
     st.markdown("### 🚀 Passo a Passo Completo")
-    
     col_tut1, col_tut2 = st.columns(2)
     
     with col_tut1:
         st.info("💻 **Fase 1: No Excel (Preparação)**")
         st.markdown("""
         O arquivo original do Tesouro precisa ser tratado antes de entrar aqui.
-        
         **Passo A: Preparar**
-        1. Baixe a **Macro 1 (Preparação)**.
-        2. No Excel, aperte `ALT + F11`, insira um Módulo e cole.
-        3. Execute para formatar a planilha.
-        
-        NOTA: A planilha MATRIZ deve estar aberta pra que a macro funcione
+        1. Baixe a **Macro 1**.
+        2. No Excel (`ALT + F11`), insira um Módulo e cole.
+        3. Execute.
         """)
-        
-        # Lê o arquivo txt que você subiu no GitHub
         macro1_content = carregar_macro("macro_preparar.txt")
-        st.download_button(
-            label="📥 Baixar Macro 1: Preparar (.txt)",
-            data=macro1_content,
-            file_name="Macro_1_Preparar.txt",
-            mime="text/plain"
-        )
+        st.download_button("📥 Baixar Macro 1: Preparar (.txt)", macro1_content, "Macro_1_Preparar.txt")
         
         st.markdown("---")
-        
         st.markdown("""
         **Passo B: Dividir**
-        1. Baixe a **Macro 2 (Divisão)**.
+        1. Baixe a **Macro 2**.
         2. Cole no Excel e execute.
         3. Isso vai gerar vários arquivos Excel (um por UG).
         """)
-        
-        # Lê o arquivo txt que você subiu no GitHub
         macro2_content = carregar_macro("macro_dividir.txt")
-        st.download_button(
-            label="📥 Baixar Macro 2: Dividir (.txt)",
-            data=macro2_content,
-            file_name="Macro_2_Dividir.txt",
-            mime="text/plain"
-        )
+        st.download_button("📥 Baixar Macro 2: Dividir (.txt)", macro2_content, "Macro_2_Dividir.txt")
 
     with col_tut2:
         st.success("🤖 **Fase 2: Na ferramenta (Aqui)**")
         st.markdown("""
-        Agora que você tem os arquivos separados:
-        
         1. Gere o **Relatório em PDF** no sistema RMB (Sintético Patrimonial).
-
-        NOTA: É necessário que o PDF esteja com caracteres selecionáveis, ou seja que seja possível copiar e colar um dado. (Por vezes o relatório é retirado como imagem, dessa forma não funcionará).
-        
-        2. Arraste **TODOS** os arquivos para a área abaixo:
-           * Os PDFs do RMB.
-           * Os Excels separados que a Macro 2 gerou.
-        3. O sistema vai casar os pares (PDF + Excel) automaticamente.
+        2. Arraste **TODOS** os arquivos abaixo (PDFs e Excels).
+        3. O sistema casa os pares automaticamente.
         4. Clique em **Iniciar Auditoria**.
         """)
 
@@ -147,7 +139,7 @@ uploaded_files = st.file_uploader(
     help="Selecione os PDFs e as Planilhas de todas as UGs."
 )
 
-# --- BOTÃO DE AÇÃO ---
+# --- LÓGICA DE PROCESSAMENTO ---
 if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
     
     if not uploaded_files:
@@ -173,45 +165,13 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     logs.append(f"⚠️ UG {ug}: Planilha encontrada, mas falta o PDF correspondente.")
         
         if not pares:
-            st.error("❌ Nenhum par completo (Excel + PDF) foi identificado. Verifique se os nomes dos arquivos Excel começam com o número da UG.")
+            st.error("❌ Nenhum par completo (Excel + PDF) foi identificado.")
         else:
-            # --- FUNÇÕES INTERNAS ---
-            def limpar_valor(v):
-                if v is None or pd.isna(v): return 0.0
-                if isinstance(v, (int, float)): return float(v)
-                v = str(v).replace('"', '').replace("'", "").strip()
-                if re.search(r',\d{1,2}$', v): v = v.replace('.', '').replace(',', '.')
-                elif re.search(r'\.\d{1,2}$', v): v = v.replace(',', '')
-                try: return float(re.sub(r'[^\d.-]', '', v))
-                except: return 0.0
-
-            def limpar_codigo_bruto(v):
-                try:
-                    s = str(v).strip()
-                    if s.endswith('.0'): s = s[:-2]
-                    return s
-                except: return ""
-
-            def extrair_chave_vinculo(codigo_str):
-                try: return int(codigo_str[-2:])
-                except: return 0
-
-    return img
-            # ------------------------
-            
-            class PDF_Report(FPDF):
-                def header(self):
-                    self.set_font('helvetica', 'B', 12)
-                    self.cell(0, 10, 'Relatório de Auditoria Patrimonial', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                    self.ln(5)
-                def footer(self):
-                    self.set_y(-15); self.set_font('helvetica', 'I', 8)
-                    self.cell(0, 10, f'Página {self.page_no()}', align='C')
-
+            # Instancia o PDF uma única vez
             pdf_out = PDF_Report()
             pdf_out.add_page()
             
-            # --- PROCESSAMENTO ---
+            # --- LOOP DE UGS ---
             st.markdown("---")
             st.subheader("🔍 Resultados da Análise")
 
@@ -258,7 +218,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     except Exception as e:
                         logs.append(f"❌ Erro Leitura Excel UG {ug}: {e}")
 
-               # === PDF ===
+                    # === LEITURA PDF (COM OCR INTELIGENTE) ===
                     df_pdf_final = pd.DataFrame()
                     dados_pdf = []
                     
@@ -268,21 +228,21 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         
                         with pdfplumber.open(io.BytesIO(pdf_bytes)) as p_doc:
                             for page in p_doc.pages:
-                                # --- CAMINHO 1: TENTATIVA PADRÃO (Leitura direta) ---
+                                # CAMINHO A: Tenta extração direta (texto selecionável)
                                 txt = page.extract_text()
-                                is_ocr = False # Flag para saber se o texto veio de OCR ou não
+                                is_ocr = False 
                                 
-                                # Verifica se a leitura padrão retornou dados úteis (padrão de moeda)
+                                # Verifica se a extração direta retornou dados válidos (padrão monetário)
                                 tem_dados_validos = False
                                 if txt:
-                                    # Procura qualquer coisa parecida com 00,00 ou 1.000,00
                                     if re.search(r'\d{1,3}(?:[.,]\d{3})*[.,]\d{2}', txt):
                                         tem_dados_validos = True
                                 
-                                # --- CAMINHO 2: MODO OCR (Só entra se o Caminho 1 falhar) ---
+                                # CAMINHO B: OCR (Só se Caminho A falhar)
                                 if not txt or not tem_dados_validos or len(txt) < 50:
-                                    is_ocr = True # Marcamos que estamos usando OCR
+                                    is_ocr = True
                                     try:
+                                        # Renderiza PDF como imagem
                                         imagens = convert_from_bytes(
                                             pdf_bytes, 
                                             first_page=page.page_number, 
@@ -292,7 +252,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                         if imagens:
                                             img = imagens[0]
                                             
-                                            # A. Correção de Rotação (Se necessário)
+                                            # B1. Correção de Rotação (OSD)
                                             try:
                                                 osd = pytesseract.image_to_osd(img, output_type=Output.DICT)
                                                 if osd['rotate'] != 0:
@@ -300,46 +260,44 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                             except:
                                                 pass
                                             
-                                            # B. Limpeza de Imagem (SÓ ACONTECE AQUI AGORA)
+                                            # B2. Limpeza Suave (Melhor contraste)
                                             img = processar_imagem_para_ocr(img)
                                             
-                                            # C. Extração Tesseract
+                                            # B3. Extração OCR
                                             custom_config = r'--psm 6 -c tessedit_char_whitelist="0123456789.,ABCDEFGHIJKLMNOPQRSTUVWXYZÇÃÕÁÉÍÓÚ- "'
                                             txt = pytesseract.image_to_string(img, lang='por', config=custom_config)
                                     except Exception:
                                         pass
 
-                                # --- PROCESSAMENTO FINAL (Comum aos dois caminhos) ---
+                                # PROCESSAMENTO DOS DADOS (Comum aos dois caminhos)
                                 if not txt: continue
                                 if "SINTÉTICO PATRIMONIAL" not in txt.upper(): continue
                                 if "DE ENTRADAS" in txt.upper() or "DE SAÍDAS" in txt.upper(): continue
 
                                 for line in txt.split('\n'):
                                     if re.match(r'^"?\d+"?\s+', line):
-                                        
                                         vals = []
-                                        # Se for OCR, usamos o Regex Flexível (aceita espaços no lugar de pontos)
+                                        
+                                        # Se for OCR, usamos Regex Flexível (aceita espaço no lugar de ponto)
                                         if is_ocr:
                                             vals_raw = re.findall(r'([\d\.\s]+,\d{2})', line)
                                             vals = [v.replace(' ', '') for v in vals_raw]
-                                        # Se for PDF Normal, usamos Regex Rígido (mais seguro para evitar falsos positivos)
+                                        # Se for nativo, usamos Regex Rígido (segurança)
                                         else:
                                             vals = re.findall(r'([0-9]{1,3}(?:[.,][0-9]{3})*[.,]\d{2})', line)
                                         
-                                        # Lógica de pegar da direita para a esquerda (Correção do Grupo 6)
+                                        # Pega o 4º elemento de trás para frente (Saldo Atual)
                                         if len(vals) >= 4:
                                             chave_match = re.match(r'^"?(\d+)', line)
                                             if chave_match:
                                                 chave_raw = chave_match.group(1)
                                                 dados_pdf.append({
                                                     'Chave_Vinculo': int(chave_raw),
-                                                    # Pega o 4º valor contando do fim (Saldo Atual)
                                                     'Saldo_PDF': limpar_valor(vals[-4])
                                                 })
                         
                         if dados_pdf:
                             df_pdf_final = pd.DataFrame(dados_pdf).groupby('Chave_Vinculo')['Saldo_PDF'].sum().reset_index()
-                    
                     except Exception as e:
                         logs.append(f"❌ Erro Leitura PDF UG {ug}: {e}")
 
@@ -374,12 +332,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
 
                     st.markdown("---")
 
-                   # === GERAÇÃO PDF ===
-                    
-                    # Função auxiliar para inverter ponto e vírgula apenas na exibição
-                    def formatar_real(valor):
-                        return f"{valor:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
-
+                    # === GERAÇÃO PDF ===
                     pdf_out.set_font("helvetica", 'B', 11)
                     pdf_out.set_fill_color(240, 240, 240)
                     pdf_out.cell(0, 10, text=f"Unidade Gestora: {ug}", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
@@ -397,11 +350,8 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         for _, row in divergencias.iterrows():
                             pdf_out.cell(15, 7, str(int(row['Chave_Vinculo'])), 1)
                             pdf_out.cell(85, 7, str(row['Descricao'])[:48], 1)
-                            
-                            # APLICAÇÃO DA CORREÇÃO AQUI
                             pdf_out.cell(30, 7, formatar_real(row['Saldo_PDF']), 1)
                             pdf_out.cell(30, 7, formatar_real(row['Saldo_Excel']), 1)
-                            
                             pdf_out.set_text_color(200, 0, 0)
                             pdf_out.cell(30, 7, formatar_real(row['Diferenca']), 1, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                             pdf_out.set_text_color(0, 0, 0)
@@ -414,7 +364,6 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         pdf_out.set_font("helvetica", 'B', 9)
                         pdf_out.set_fill_color(255, 255, 200)
                         pdf_out.cell(100, 8, "SALDO NA CONTA DE ESTOQUE INTERNO", 1, fill=True)
-                        # APLICAÇÃO DA CORREÇÃO AQUI
                         pdf_out.cell(90, 8, f"R$ {formatar_real(saldo_2042)}", 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                         pdf_out.set_text_color(0, 0, 0)
 
@@ -422,15 +371,14 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     pdf_out.set_font("helvetica", 'B', 9)
                     pdf_out.set_fill_color(220, 230, 241)
                     pdf_out.cell(100, 8, "TOTAIS (CONTAS PADRÃO)", 1, fill=True)
-                    
-                    # APLICAÇÃO DA CORREÇÃO NOS TOTAIS
                     pdf_out.cell(30, 8, formatar_real(soma_pdf), 1, fill=True)
                     pdf_out.cell(30, 8, formatar_real(soma_excel), 1, fill=True)
-                    
                     if abs(dif_total) > 0.05: pdf_out.set_text_color(200, 0, 0)
                     pdf_out.cell(30, 8, formatar_real(dif_total), 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                     pdf_out.set_text_color(0, 0, 0)
                     pdf_out.ln(5)
+                
+                progresso.progress((idx + 1) / len(pares))
 
             # --- FIM ---
             status_text.text("Processamento concluído!")
@@ -453,14 +401,3 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
-
-
-
-
-
-
-
-
-
-
-
