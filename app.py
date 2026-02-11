@@ -19,6 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Estilo Clean
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -36,7 +37,7 @@ def carregar_macro(nome_arquivo):
             with open(nome_arquivo, "r", encoding="latin-1") as f: return f.read()
         except: return "Erro: Arquivo não encontrado."
 
-# === FUNÇÃO DE INTELIGÊNCIA HÍBRIDA (TEXTO + OCR) ===
+# === FUNÇÃO DE INTELIGÊNCIA HÍBRIDA (AGORA COM DETECÇÃO DE PAISAGEM) ===
 def extrair_dados_pdf_hibrido(arquivo_pdf):
     dados_extraidos = []
     usou_ocr = False
@@ -44,60 +45,55 @@ def extrair_dados_pdf_hibrido(arquivo_pdf):
     # Lê o arquivo para memória
     pdf_bytes = arquivo_pdf.read()
     
-    # TENTATIVA 1: Leitura Direta (Com Layout Físico)
-    # Isso resolve o caso do arquivo 153272.pdf onde o texto existe mas está desalinhado
+    # 1. Leitura Direta (layout=True corrige alinhamento Paisagem/Retrato)
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         texto_total = ""
         for page in pdf.pages:
-            # layout=True força o robô a ler linha por linha visualmente, não por coluna
-            texto_pagina = page.extract_text(layout=True) 
-            if texto_pagina:
-                texto_total += "\n" + texto_pagina
+            texto_pagina = page.extract_text(layout=True) or ""
+            texto_total += "\n" + texto_pagina
 
-    # Se leu muito pouco texto (menos de 50 caracteres), assume que é IMAGEM
+    # 2. Fallback para OCR se estiver vazio
     if len(texto_total) < 50:
         usou_ocr = True
         try:
-            # Converte PDF em Imagens
             images = convert_from_bytes(pdf_bytes)
             texto_total = ""
             for img in images:
-                # Usa Tesseract para ler a imagem (OCR)
                 texto_pagina = pytesseract.image_to_string(img, lang='por')
                 texto_total += "\n" + texto_pagina
         except Exception as e:
             return [], f"Erro no OCR: {str(e)}"
 
-    # PROCESSAMENTO DO TEXTO (COMUM AOS DOIS MÉTODOS)
     if not texto_total: return [], "Vazio"
 
-    # Filtros de cabeçalho
-    linhas_validas = []
+    # 3. Processamento das Linhas
     for line in texto_total.split('\n'):
+        # Filtros de cabeçalho
         if "SINTÉTICO PATRIMONIAL" in line.upper(): continue
         if "DE ENTRADAS" in line.upper() or "DE SAÍDAS" in line.upper(): continue
-        linhas_validas.append(line)
-
-    # Regex poderoso para capturar dados mesmo com sujeira
-    # Procura: Começo de linha -> Número (Chave) -> Espaço -> Descrição -> Valores
-    for line in linhas_validas:
+        
         line = line.strip()
-        # Regex ajustado: Pega numero no inicio, ignora chars estranhos, pega descrição e valores
+        # Regex captura: Numero (Chave) ... Descrição ... Valores
         match = re.search(r'^"?(\d+)"?\s+(.+?)(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})', line)
         
         if match:
-            # Tenta encontrar TODOS os valores monetários na linha
+            # Encontra todos os valores numéricos da linha
             vals = re.findall(r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})', line)
             
-            # Precisamos do Saldo Atual.
-            # Em PDFs normais é a coluna 6. Em OCR pode variar, mas geralmente é o último ou penúltimo saldo grande.
-            # Vamos manter a lógica da 6ª coluna se tiver muitos valores, ou pegar o último se tiver poucos.
-            if len(vals) >= 3:
-                # Se tiver muitos valores, tentamos pegar o índice 5 (6ª coluna) ou o último
-                valor_candidato = vals[5] if len(vals) >= 6 else vals[-1]
+            # === LÓGICA DINÂMICA (RETRATO vs PAISAGEM) ===
+            # Retrato (Padrão): ~8 colunas de valores -> Saldo Atual é a 6ª (índice 5)
+            # Paisagem (Invertido): ~10+ colunas -> Saldo Atual costuma ser a 7ª (índice 6)
+            
+            indice_saldo = 5 # Padrão (Retrato)
+            
+            if len(vals) >= 9:
+                indice_saldo = 6 # Ajuste para Paisagem
+            
+            # Segurança para não estourar o índice
+            if len(vals) > indice_saldo:
+                valor_candidato = vals[indice_saldo]
                 
                 chave = int(match.group(1))
-                # Limpeza da descrição (remove aspas e sujeira do OCR)
                 desc = re.sub(r'[\d.,]+$', '', match.group(2)).strip() 
                 
                 dados_extraidos.append({
@@ -109,9 +105,9 @@ def extrair_dados_pdf_hibrido(arquivo_pdf):
     return dados_extraidos, "OCR Ativado" if usou_ocr else "Leitura Direta"
 
 # ==========================================
-# INTERFACE
+# INTERFACE DO APP
 # ==========================================
-st.title("👁️ Auditor Patrimonial (com Leitor Óptico)")
+st.title("👁️ Auditor Patrimonial (Inteligente)")
 st.markdown("---")
 
 with st.expander("📘 GUIA DE USO E MACROS", expanded=False):
@@ -125,7 +121,7 @@ with st.expander("📘 GUIA DE USO E MACROS", expanded=False):
         st.download_button("📥 Baixar Macro 2", macro2, "Macro_2.txt")
     with col2:
         st.success("2. Auditoria (Aqui)")
-        st.write("Agora suporta PDFs escaneados (imagens) e PDFs com formatação quebrada!")
+        st.write("Suporta: PDFs Texto, Imagem (Scanner) e Paisagem (Invertido).")
 
 st.subheader("📂 Área de Arquivos")
 uploaded_files = st.file_uploader(
@@ -138,12 +134,14 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
         st.warning("⚠️ Adicione arquivos.")
     else:
         progresso = st.progress(0)
-        logs = []
+        status_text = st.empty()
         
         pdfs = {f.name: f for f in uploaded_files if f.name.lower().endswith('.pdf')}
         excels = {f.name: f for f in uploaded_files if (f.name.lower().endswith('.xlsx') or f.name.lower().endswith('.csv'))}
         
         pares = []
+        logs = []
+        
         for name_ex, file_ex in excels.items():
             match = re.match(r'^(\d+)', name_ex)
             if match:
@@ -157,7 +155,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
         if not pares:
             st.error("❌ Nenhum par encontrado.")
         else:
-            # Funções de Limpeza
+            # Funções Auxiliares
             def limpar_valor(v):
                 if v is None or pd.isna(v): return 0.0
                 if isinstance(v, (int, float)): return float(v)
@@ -178,7 +176,6 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 try: return int(v[-2:])
                 except: return 0
 
-            # PDF Report Class
             class PDF_Report(FPDF):
                 def header(self):
                     self.set_font('helvetica', 'B', 12)
@@ -195,16 +192,12 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
 
             for idx, par in enumerate(pares):
                 ug = par['ug']
+                status_text.text(f"Processando {ug}...")
                 
                 with st.container():
-                    # === 1. PROCESSAR PDF (AGORA COM OCR) ===
-                    # Reinicia ponteiro do PDF para garantir leitura do zero
+                    # === 1. PDF INTELIGENTE ===
                     par['pdf'].seek(0)
                     dados_pdf_raw, metodo_leitura = extrair_dados_pdf_hibrido(par['pdf'])
-                    
-                    # Log visual do método usado
-                    if metodo_leitura == "OCR Ativado":
-                        st.caption(f"📸 PDF da UG {ug} processado como IMAGEM (OCR).")
                     
                     df_pdf_final = pd.DataFrame()
                     if dados_pdf_raw:
@@ -212,7 +205,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                         df_temp['Saldo_PDF'] = df_temp['Saldo_PDF'].apply(limpar_valor)
                         df_pdf_final = df_temp.groupby('Chave_Vinculo')['Saldo_PDF'].sum().reset_index()
 
-                    # === 2. PROCESSAR EXCEL ===
+                    # === 2. EXCEL ===
                     df_padrao = pd.DataFrame()
                     saldo_2042 = 0.0
                     tem_2042 = False
@@ -249,25 +242,25 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                     final['Diferenca'] = (final['Saldo_PDF'] - final['Saldo_Excel']).round(2)
                     divergencias = final[abs(final['Diferenca']) > 0.05].copy()
 
-                    # === VISUALIZAÇÃO ===
-                    st.info(f"🏢 **UG: {ug}** ({metodo_leitura})")
+                    # === VISUAL ===
                     c1, c2, c3 = st.columns(3)
                     s_pdf = final['Saldo_PDF'].sum()
                     s_ex = final['Saldo_Excel'].sum()
                     dif = s_pdf - s_ex
                     
-                    c1.metric("RMB (PDF)", f"R$ {s_pdf:,.2f}")
+                    c1.metric("RMB (PDF)", f"R$ {s_pdf:,.2f}", help="Total extraído do PDF (considerando orientação)")
                     c2.metric("SIAFI (Excel)", f"R$ {s_ex:,.2f}")
                     c3.metric("Diferença", f"R$ {dif:,.2f}", delta_color="inverse" if abs(dif) > 0.05 else "normal")
 
                     if not divergencias.empty:
-                        st.warning(f"⚠️ {len(divergencias)} divergência(s).")
+                        st.warning(f"⚠️ {len(divergencias)} divergência(s) na UG {ug}.")
                         with st.expander("Ver Detalhes"):
                             st.dataframe(divergencias[['Chave_Vinculo', 'Descricao', 'Saldo_PDF', 'Saldo_Excel', 'Diferenca']])
                     else:
-                        st.success("✅ Contas conciliadas.")
+                        st.success(f"✅ UG {ug} Conciliada!")
                     
                     if tem_2042: st.warning(f"ℹ️ Estoque Interno: R$ {saldo_2042:,.2f}")
+                    st.markdown("---")
 
                     # === PDF REPORT ===
                     pdf_out.set_font("helvetica", 'B', 11)
@@ -313,6 +306,7 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 progresso.progress((idx + 1) / len(pares))
 
             st.success("Processamento Finalizado!")
+            progresso.empty()
             if logs:
                 with st.expander("Logs"): 
                     for l in logs: st.write(l)
@@ -321,4 +315,3 @@ if st.button("▶️ Iniciar Auditoria", use_container_width=True, type="primary
                 pdf_bytes = bytes(pdf_out.output())
                 st.download_button("📥 BAIXAR RELATÓRIO PDF", pdf_bytes, "RELATORIO_AUDITORIA.pdf", "application/pdf", type="primary", use_container_width=True)
             except Exception as e: st.error(f"Erro download: {e}")
-                
