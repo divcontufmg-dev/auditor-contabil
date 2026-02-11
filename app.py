@@ -307,7 +307,12 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
 
                     st.markdown("---")
 
-                    # === GERAÇÃO PDF ===
+                   # === GERAÇÃO PDF ===
+                    
+                    # Função auxiliar para inverter ponto e vírgula apenas na exibição
+                    def formatar_real(valor):
+                        return f"{valor:,.2f}".replace(',', '_').replace('.', ',').replace('_', '.')
+
                     pdf_out.set_font("helvetica", 'B', 11)
                     pdf_out.set_fill_color(240, 240, 240)
                     pdf_out.cell(0, 10, text=f"Unidade Gestora: {ug}", border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
@@ -325,10 +330,13 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         for _, row in divergencias.iterrows():
                             pdf_out.cell(15, 7, str(int(row['Chave_Vinculo'])), 1)
                             pdf_out.cell(85, 7, str(row['Descricao'])[:48], 1)
-                            pdf_out.cell(30, 7, f"{row['Saldo_PDF']:,.2f}", 1)
-                            pdf_out.cell(30, 7, f"{row['Saldo_Excel']:,.2f}", 1)
+                            
+                            # APLICAÇÃO DA CORREÇÃO AQUI
+                            pdf_out.cell(30, 7, formatar_real(row['Saldo_PDF']), 1)
+                            pdf_out.cell(30, 7, formatar_real(row['Saldo_Excel']), 1)
+                            
                             pdf_out.set_text_color(200, 0, 0)
-                            pdf_out.cell(30, 7, f"{row['Diferenca']:,.2f}", 1, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                            pdf_out.cell(30, 7, formatar_real(row['Diferenca']), 1, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                             pdf_out.set_text_color(0, 0, 0)
                     else:
                         pdf_out.set_font("helvetica", 'I', 9)
@@ -339,21 +347,23 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                         pdf_out.set_font("helvetica", 'B', 9)
                         pdf_out.set_fill_color(255, 255, 200)
                         pdf_out.cell(100, 8, "SALDO NA CONTA DE ESTOQUE INTERNO", 1, fill=True)
-                        pdf_out.cell(90, 8, f"R$ {saldo_2042:,.2f}", 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                        # APLICAÇÃO DA CORREÇÃO AQUI
+                        pdf_out.cell(90, 8, f"R$ {formatar_real(saldo_2042)}", 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                         pdf_out.set_text_color(0, 0, 0)
 
                     pdf_out.ln(2)
                     pdf_out.set_font("helvetica", 'B', 9)
                     pdf_out.set_fill_color(220, 230, 241)
                     pdf_out.cell(100, 8, "TOTAIS (CONTAS PADRÃO)", 1, fill=True)
-                    pdf_out.cell(30, 8, f"{soma_pdf:,.2f}", 1, fill=True)
-                    pdf_out.cell(30, 8, f"{soma_excel:,.2f}", 1, fill=True)
+                    
+                    # APLICAÇÃO DA CORREÇÃO NOS TOTAIS
+                    pdf_out.cell(30, 8, formatar_real(soma_pdf), 1, fill=True)
+                    pdf_out.cell(30, 8, formatar_real(soma_excel), 1, fill=True)
+                    
                     if abs(dif_total) > 0.05: pdf_out.set_text_color(200, 0, 0)
-                    pdf_out.cell(30, 8, f"{dif_total:,.2f}", 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf_out.cell(30, 8, formatar_real(dif_total), 1, fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                     pdf_out.set_text_color(0, 0, 0)
                     pdf_out.ln(5)
-                
-                progresso.progress((idx + 1) / len(pares))
 
             # --- FIM ---
             status_text.text("Processamento concluído!")
@@ -376,5 +386,6 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
