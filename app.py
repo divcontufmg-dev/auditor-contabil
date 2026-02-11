@@ -8,6 +8,7 @@ import os
 import pytesseract
 from pdf2image import convert_from_bytes
 from PIL import Image
+from pytesseract import Output
 
 # ==========================================
 # CONFIGURAÇÃO INICIAL
@@ -225,37 +226,61 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                     except Exception as e:
                         logs.append(f"❌ Erro Leitura Excel UG {ug}: {e}")
 
-                  # === PDF ===
+                 # === PDF ===
                     df_pdf_final = pd.DataFrame()
                     dados_pdf = []
                     
                     try:
-                        # Carrega o PDF em bytes na memória para usar em ambas as bibliotecas sem conflito
                         par['pdf'].seek(0)
                         pdf_bytes = par['pdf'].read()
                         
-                        # Abre com pdfplumber usando BytesIO
                         with pdfplumber.open(io.BytesIO(pdf_bytes)) as p_doc:
                             for page in p_doc.pages:
+                                # 1. Tenta extração direta (rápida)
                                 txt = page.extract_text()
+                                dados_pagina = [] # Armazena dados encontrados nesta página
                                 
-                                # --- MODIFICAÇÃO: OCR SE NÃO HOUVER TEXTO ---
-                                if not txt or len(txt.strip()) < 10:
+                                # Verifica se a extração direta funcionou (se achou padrão de valores)
+                                tem_dados_validos = False
+                                if txt:
+                                    for line in txt.split('\n'):
+                                        if re.search(r'\d{1,3}(?:[.,]\d{3})*[.,]\d{2}', line):
+                                            tem_dados_validos = True
+                                            break
+                                
+                                # 2. Se não tem texto ou o texto está "quebrado" (orientação errada), vai para OCR Inteligente
+                                if not txt or not tem_dados_validos or len(txt) < 50:
                                     try:
-                                        # Converte APENAS a página atual para imagem (pdf2image usa índice base-1)
+                                        # Converte para imagem
                                         imagens = convert_from_bytes(
                                             pdf_bytes, 
                                             first_page=page.page_number, 
                                             last_page=page.page_number
                                         )
                                         if imagens:
-                                            # --psm 6 assume um bloco único de texto (bom para tabelas/listas)
-                                            txt = pytesseract.image_to_string(imagens[0], lang='por', config='--psm 6')
-                                    except Exception as e_ocr:
-                                        # Se falhar o OCR, segue sem texto
-                                        pass
-                                # ---------------------------------------------
+                                            img = imagens[0]
+                                            
+                                            # --- CORREÇÃO DE ORIENTAÇÃO (OSD) ---
+                                            try:
+                                                # Detecta a orientação do texto na imagem
+                                                osd = pytesseract.image_to_osd(img, output_type=Output.DICT)
+                                                angulo_rotacao = osd['rotate']
+                                                
+                                                # Se detectar rotação (90, 180, 270), corrige a imagem
+                                                if angulo_rotacao != 0:
+                                                    # Nota: rotate do PIL é anti-horário, o OSD devolve horário. 
+                                                    # Usamos negativo para corrigir.
+                                                    img = img.rotate(-angulo_rotacao, expand=True)
+                                            except:
+                                                pass # Se falhar a detecção (página em branco), segue com a imagem original
+                                            # ------------------------------------
 
+                                            # Aplica OCR na imagem agora corrigida/em pé
+                                            txt = pytesseract.image_to_string(img, lang='por', config='--psm 6')
+                                    except Exception:
+                                        pass
+
+                                # 3. Processa o texto (seja do PDF nativo ou do OCR corrigido)
                                 if not txt: continue
                                 if "SINTÉTICO PATRIMONIAL" not in txt.upper(): continue
                                 if "DE ENTRADAS" in txt.upper() or "DE SAÍDAS" in txt.upper(): continue
@@ -386,6 +411,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
