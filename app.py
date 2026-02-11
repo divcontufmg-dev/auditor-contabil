@@ -169,11 +169,15 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
 
 # --- Limpar PDF para OCR ---
             def processar_imagem_para_ocr(img):
-                # Converte para escala de cinza
-                img = img.convert('L')
-                # Binarização: força o texto a ficar preto e o fundo branco
-                img = img.point(lambda x: 0 if x < 180 else 255, '1')
-                return img
+    # 1. Converte para tons de cinza
+    img = img.convert('L')
+    
+    # 2. Aumenta o contraste em 2x (deixa o preto mais preto e o branco mais branco)
+    # Isso é mais seguro que o método anterior pois não "recorta" pixels cinzas claros.
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(2.0)
+    
+    return img
             # ------------------------
             
             class PDF_Report(FPDF):
@@ -264,7 +268,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                                             pdf_bytes, 
                                             first_page=page.page_number, 
                                             last_page=page.page_number,
-                                            dpi=300
+                                            dpi=400
                                         )
                                         if imagens:
                                             img = imagens[0]
@@ -430,6 +434,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar download: {e}")
+
 
 
 
