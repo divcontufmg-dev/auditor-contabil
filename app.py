@@ -205,7 +205,7 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                             df = pd.read_excel(par['excel'], header=None)
                         
                         if len(df.columns) >= 5:
-                            df['Codigo_Limpo'] = df.iloc[:, 1].apply(limpar_codigo_bruto)
+                            df['Codigo_Limpo'] = df.iloc[:, 0].apply(limpar_codigo_bruto)
                             df['Descricao_Excel'] = df.iloc[:, 3].astype(str).str.strip().str.upper()
                             df['Valor_Limpo'] = df.iloc[:, 3].apply(limpar_valor)
                             
@@ -395,5 +395,6 @@ if st.button("▶️ Iniciar", use_container_width=True, type="primary"):
                 st.download_button("BAIXAR RELATÓRIO PDF", pdf_bytes, "RELATORIO_FINAL.pdf", "application/pdf", type="primary", use_container_width=True)
             except Exception as e:
                 st.error(f"Erro download: {e}")
+
 
 
